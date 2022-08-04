@@ -11,11 +11,12 @@ import tofu_functions as dfs
 import numpy as np
 
 
-def merge_data():
+def merge_data(directory):
+    """Merge pulse areas to single file to paste into compton_fit.xlsx."""
     adq14 = dfs.get_dictionaries('ADQ14')
     counts = np.zeros([411, 20])
     for i, detector in enumerate(adq14):
-        path = f'../data/pulse_areas/{detector}.txt'
+        path = f'../data/pulse_areas/{directory}/{detector}.txt'
         p = np.loadtxt(path, dtype='float')
         counts[:, i] = p[:, 1]
     np.savetxt('adq14.txt', counts)
@@ -23,9 +24,11 @@ def merge_data():
     adq412 = dfs.get_dictionaries('ADQ412')
     counts = np.zeros([142, 17])
     for i, detector in enumerate(adq412):
-        path = f'../data/pulse_areas/{detector}.txt'
+        path = f'../data/pulse_areas/{directory}/{detector}.txt'
         p = np.loadtxt(path, dtype='float')
         counts[:, i] = p[:, 1]
     np.savetxt('adq412.txt', counts)
 
-merge_data()
+
+if __name__ == '__main__':
+    merge_data('20-11-2020')

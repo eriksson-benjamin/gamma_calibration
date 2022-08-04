@@ -17,7 +17,7 @@ import scipy
 udfs.set_nes_plot_style()
 sys.path.insert(0, 'C:/python/TOFu/functions/')
 import tofu_functions as dfs
-
+import os
 
 '''
 Takes a simulated and a measured Na-22 spectrum and applies alpha, beta, gamma
@@ -26,25 +26,6 @@ of 511 keV and 1275 keV gammas. Offset and multiplier is applied to the x-axis
 of the measured spectrum. Least squares fit is performed by varying all seven
 parameters (alpha, beta, gamma, I_511, I_1275, offset, multiplier).
 '''
-
-
-def plot_fit(detector_name, exp_new_erg, exp_cts, sim_erg, sim_new_cts, limits):
-    # Plot the results from fit_function()
-    plt.figure(detector_name)
-    plt.plot(exp_new_erg, exp_cts, 'k.')
-    plt.errorbar(exp_new_erg, exp_cts, yerr=np.sqrt(exp_cts),
-                 linestyle='none', color='black', capsize=2)
-    plt.plot(sim_erg, sim_new_cts, 'r--')
-    plt.yscale('log')
-
-    lim_l = limits[0]
-    lim_u = limits[1]
-    bin_lims = [np.searchsorted(exp_new_erg, lim_l),
-                np.searchsorted(exp_new_erg, lim_u)]
-    min_count = exp_cts[bin_lims[1]]
-    max_count = np.max(exp_cts[bin_lims[0]:bin_lims[1]])
-    plt.ylim([min_count, 1.1 * max_count])
-    plt.xlim([lim_l, lim_u])
 
 
 def read_mcnp(detector):
@@ -63,15 +44,15 @@ def read_mcnp(detector):
     return sim_511, sim_1275
 
 
-def read_experimental(detector):
+def read_experimental(detector, directory):
     """Return the experimental Na-22 data."""
-    path = 'data/pulse_areas'
+    path = f'data/pulse_areas/{directory}'
     return np.loadtxt(f'{path}/{detector}.txt')
 
 
-def starting_guesses(detector):
+def starting_guesses(detector, directory):
     """Return starting guesses for given detector."""
-    p = np.loadtxt(f'initial_guesses/parameters/{detector}.txt',
+    p = np.loadtxt(f'initial_guesses/parameters/{directory}/{detector}.txt',
                    dtype='float', usecols=1)
     parameters = p[:-2]
     limits = p[-2:]
@@ -202,12 +183,31 @@ def plot_comparison(parameters, sim_511, sim_1275, exp, limits):
     plt.yscale('log')
 
 
-def main(detector):
+def write_parameters(detector, directory, parameters):
+    """Write fit parameters to file."""
+    par_names = ['alpha', 'beta', 'gamma', 'offset', 'multiplier', 'I_511',
+                 'I_1275', 'lim_lo', 'lim_hi']
+    file_name = f'output/fit_parameters/{directory}/{detector}.txt'
+
+    # Check if file already exists
+    if os.path.exists(file_name):
+        ans = input(f'Overwrite {file_name}? (y/n): ')
+        if ans != 'y':
+            print('File was not overwritten.')
+            return 0
+
+    # Save parameters to file
+    with open(file_name, 'w') as handle:
+        for pn, par in zip(par_names, parameters):
+            handle.write(f'{pn.ljust(10)} {par}\n')
+
+
+def main(detector, directory):
     """Perform fit and write parameters to file."""
     # Read simulated/experimental data and initial parameter guesses
     sim_511, sim_1275 = read_mcnp(detector)
-    exp = read_experimental(detector)
-    parameters, limits = starting_guesses(detector)
+    exp = read_experimental(detector, directory)
+    parameters, limits = starting_guesses(detector, directory)
 
     # Plot initial guess
     while True:
@@ -218,7 +218,7 @@ def main(detector):
         if ans == 'y':
             break
         else:
-            parameters, limits = starting_guesses(detector)
+            parameters, limits = starting_guesses(detector, directory)
 
     # Minimize test statistic with given bounds
     bnds = ((0, None), (0, None), (0, None), (None, None), (0, None),
@@ -229,14 +229,12 @@ def main(detector):
     # Plot resulting fit
     plot_comparison(popt.x, sim_511, sim_1275, exp, limits)
 
-    # Write fit parameters to file
-    par_names = ['alpha', 'beta', 'gamma', 'offset', 'multiplier', 'I_511',
-                 'I_1275', 'lim_lo', 'lim_hi']
-    with open(f'output/{detector}.txt', 'w') as handle:
-        for pn, par in zip(par_names, popt.x):
-            handle.write(f'{pn.ljust(10)} {par}\n')
+    # Save parameters to file
+    write_parameters(detector, directory, np.append(popt.x, limits))
 
 
 if __name__ == '__main__':
     detector = sys.argv[1]
-    main(detector)
+    directory = sys.argv[2]
+
+    main(detector, directory)

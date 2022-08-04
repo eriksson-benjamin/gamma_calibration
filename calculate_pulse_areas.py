@@ -24,11 +24,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def import_data(detector, rec_len):
+def import_data(detector, rec_len, directory):
     """Return the raw pulse waveform data."""
     board, channel = dfs.get_board_name(detector)
-    p = udfs.import_pulses(full_path=f'data/raw_data/M11D-B{board}_DT{channel}',
-                           record_length=rec_len)
+    path = f'data/raw_data/{directory}/M11D-B{board}_DT{channel}'
+    p = udfs.import_pulses(full_path=path, record_length=rec_len)
     return p
 
 
@@ -76,10 +76,10 @@ def plot_histogram(bin_centers, counts, fig_name):
     plt.ylabel('Counts')
 
 
-def main(detector, bias_level, rec_len, bin_edges):
+def main(detector, bias_level, rec_len, bin_edges, directory):
     """Calculate area under pulses for each detector."""
     # Import pulses
-    pulses = import_data(detector, rec_len)
+    pulses = import_data(detector, rec_len, directory)
 
     # Calculate area under pulse
     integrals = calculate_integral(pulses, bias_level, rec_len, detector)
@@ -92,14 +92,15 @@ def main(detector, bias_level, rec_len, bin_edges):
 
 
 if __name__ == '__main__':
+    # Set directory
+    directory = '20-11-2020'
+
     # Run for ADQ412
     adq412 = dfs.get_dictionaries('ADQ412')
     for detector in adq412:
-        if detector != 'S2_16':
-            continue
-        counts, bin_centers = main(detector, 1600, 56, np.arange(0, 5E4, 350))
+        counts, bin_centers = main(detector, 1600, 56, np.arange(0, 5E4, 350),
+                                   directory)
         plot_histogram(bin_centers, counts, 'ADQ412')
-        break
 
     # Run for ADQ14
     adq14 = dfs.get_dictionaries('ADQ14')
@@ -107,8 +108,7 @@ if __name__ == '__main__':
         if detector[:3] == 'S1':
             bias_level = 27000
         else:
-            bias_level = 30000
+            bias_level = 27000
         counts, bin_centers = main(detector, bias_level, 64,
-                                   np.arange(0, 1.2345E6, 3000))
+                                   np.arange(0, 1.2345E6, 3000), directory)
         plot_histogram(bin_centers, counts, 'ADQ14')
-        break
