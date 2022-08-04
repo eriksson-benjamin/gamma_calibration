@@ -1,0 +1,72 @@
+Gamma calibration of S1's using Na-22 source
+C Cells
+100 0         1000               IMP:P=0 $ Universe edge
+101 1 -0.0013 -1000 
+       #201 #202 #203 #204 #205   IMP:P=1 $ Air
+201 2 -1.032  -2000 -2010 2011    IMP:P=1 $ S1_5
+202 2 -1.032  -2000 -2012 2013    IMP:P=1 $ S1_4
+203 2 -1.032  -2000 -2014 2015    IMP:P=1 $ S1_3
+204 2 -1.032  -2000 -2016 2017    IMP:P=1 $ S1_2
+205 2 -1.032  -2000 -2018 2019    IMP:P=1 $ S1_1
+
+C Surfaces
+1000 SO   1000         $ Universe edge
+2000 C/Z  0 0 4        $ S1 cylinder 
+2010 PZ   0            $ S1_5 top
+2011 PZ  -0.005        $ S1_5 bottom
+2012 PZ  -0.006        $ S1_4 top
+2013 PZ  -0.011        $ S1_4 bottom
+2014 PZ  -0.012        $ S1_3 top
+2015 PZ  -0.017        $ S1_3 bottom
+2016 PZ  -0.018        $ S1_2 top
+2017 PZ  -0.023        $ S1_2 bottom
+2018 PZ  -0.024        $ S1_1 top
+2019 PZ  -0.029        $ S1_1 bottom
+
+C Materials
+C   
+C     Air at sea level       
+C     density = 0.0013 g/cm3
+M1    1001.31c    0.0194036098476     $   Hydrogen
+      1002.31c    2.91054147714e-06   
+      6012.31c    0.000390519962334   $   Carbon
+      6013.31c    4.34349806438e-06   
+      7014.31c    0.754525512727      $   Nitrogen
+      7015.31c    0.00280295622198    
+      8016.31c    0.213278126703      $   Oxygen
+      8017.31c    8.54822151114e-05   
+      8018.31c    0.000427411075557   
+      10020.03c   1.59622826231e-05   $   Neon
+      10021.03c   4.7622279649e-08    
+      10022.03c   1.63150402501e-06   
+      18036.31c   3.0537207142e-05    $   Argon
+      18038.31c   5.70873605326e-06   
+      18040.31c   0.00902523985563  
+C Bicron BC-418 plastic scintillator
+C density = 1.032 g/cm3 
+C https://www.crystals.saint-gobain.com/sites/imdf.crystals.com/files/documents/bc418-420-422-data-sheet.pdf
+M2    1001.31c    1.099156            $   Hydrogen
+      6012.31c    0.989000            $   Carbon
+      6013.31c    0.011         
+C
+C Other cards 
+C
+SDEF pos=0 0 20 ERG=1.275 PAR=P
+CTME 0.1
+PRDMP 1e7 1e7 J 3 J
+MODE P
+PHYS:P 100
+CUT:P 2J 0 0
+C
+C Tallies
+C
+F18:P (201)
+E18 0 1e-5 1e-4 1e-3 1e-2 198I 2
+F28:P (202)
+E28 0 1e-5 1e-4 1e-3 1e-2 198I 2
+F38:P (203)
+E38 0 1e-5 1e-4 1e-3 1e-2 198I 2
+F48:P (204)
+E48 0 1e-5 1e-4 1e-3 1e-2 198I 2
+F58:P (205)
+E58 0 1e-5 1e-4 1e-3 1e-2 198I 2
