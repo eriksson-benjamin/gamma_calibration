@@ -122,11 +122,12 @@ def linear_interpolation(exp_cts, exp_ax, sim_cts, sim_ax):
 
 def warp_axes(parameters, sim_511, sim_1275, exp, limits):
     """
-    Something.
+    Broaden simulation and warp axis of experimental data.
 
     Notes
     -----
-    Something else
+    Broaden simulated spectrum and apply offset/multiplier to experimental
+    spectrum.
     """
     # Get free parameters
     alpha = parameters[0]
@@ -170,15 +171,16 @@ def fit_function(parameters, sim_511, sim_1275, exp, limits):
     return chi2
 
 
-def plot_comparison(parameters, sim_511, sim_1275, exp, limits):
+def plot_comparison(parameters, sim_511, sim_1275, exp, limits, detector):
     """Plot broadened MCNP spectrum vs. experimental Na-22 spectrum."""
     exp, sim = warp_axes(parameters, sim_511, sim_1275, exp, limits)
     plt.figure()
+    plt.title(detector, loc='left')
     plt.plot(exp[0], exp[1], 'k.', label='Na-22')
     plt.errorbar(exp[0], exp[1], yerr=np.sqrt(exp[1]), linestyle='None',
                  color='k')
     plt.plot(sim[0], sim[1], 'C0-', label='MCNP')
-    plt.xlabel('$E_{ee}$ $MeV_{ee}$')
+    plt.xlabel('$E_{ee}$ $(MeV_{ee})$')
     plt.ylabel('Intensity (a.u.)')
     plt.yscale('log')
 
@@ -211,9 +213,9 @@ def main(detector, directory):
 
     # Plot initial guess
     while True:
-        plot_comparison(parameters, sim_511, sim_1275, exp, limits)
+        plot_comparison(parameters, sim_511, sim_1275, exp, limits, detector)
         plt.savefig('initial_guesses/init.png')
-        plt.close('all')
+        # plt.close('all')
         ans = input('Continue with fit? (y/n) ')
         if ans == 'y':
             break
@@ -227,14 +229,21 @@ def main(detector, directory):
                                    args=(sim_511, sim_1275, exp, limits))
 
     # Plot resulting fit
-    plot_comparison(popt.x, sim_511, sim_1275, exp, limits)
+    plot_comparison(popt.x, sim_511, sim_1275, exp, limits, detector)
+
+    # Print parameters
+    parameters = np.append(popt.x, limits)
+    par_names = ['alpha', 'beta', 'gamma', 'offset', 'multiplier', 'I_511',
+                 'I_1275', 'lim_lo', 'lim_hi']
+    for pn, par in zip(par_names, parameters):
+        print(f'{pn.ljust(10)} {par}\n')
 
     # Save parameters to file
     write_parameters(detector, directory, np.append(popt.x, limits))
 
 
 if __name__ == '__main__':
+    # Main analysis
     detector = sys.argv[1]
     directory = sys.argv[2]
-
     main(detector, directory)
