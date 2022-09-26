@@ -53,7 +53,7 @@ def plot_gamma_spectra(detector, directory):
     # Arrows
     ax1.annotate("", xy=(0.078, 5500), xytext=(0.14, 5500),
                  arrowprops=dict(arrowstyle="->"))
-    ax1.annotate("", xy=(0.238, 400), xytext=(0.3, 400),
+    ax1.annotate("", xy=(0.222, 600), xytext=(0.284, 600),
                  arrowprops=dict(arrowstyle="->"))
     ax2.annotate("", xy=(0.369, 2.8E-3), xytext=(0.52, 2.8E-3),
                  arrowprops=dict(arrowstyle="->"))
@@ -80,8 +80,11 @@ def plot_fitted_spectra(detectors, directory):
     fig.set_figheight(6)
     fig.set_figwidth(6)
     letters = ['(a)', '(b)', '(c)', '(d)']
-    x_lims = [(0.14, 1.32), (0.145, 1.4), (0.2, 1.49), (0.25, 1.4)]
-    y_lims = [(60, 4.1E4), (50, 1.5E4), (5, 4E3), (60, 2E4)]
+    # x_lims = [(0.0, 1.6), (0.0, 1.8), (0.0, 1.8), (0.0, 1.8)]
+    # y_lims = [(60, 8E4), (1, 6E4), (1, 1E4), (10, 6E4)]
+    x_lims = [(0.0, 1.5), (0.0, 1.6), (0.0, 1.8), (0.0, 1.6)]
+    y_lims = [(10, 2E5), (10, 2E5), (1, 6E4), (1, 1E4)]
+
     for i, ax in enumerate(axes.flatten()):
         # Read experimental/simulated data and fit parameters
         sim_511, sim_1275 = cpt.read_mcnp(detectors[i])
@@ -91,19 +94,22 @@ def plot_fitted_spectra(detectors, directory):
         # Apply fit parameters
         exp, sim = cpt.warp_axes(parameters, sim_511, sim_1275, exp, limits)
 
+        # Only plot fit region
+        fit_bool = ((sim[0] >= limits[0]) & (sim[0] <= limits[1]))
+
         # Plot
         # ----
         ax.plot(exp[0], exp[1], 'k.', label='Na-22', markersize=1.5)
         ax.errorbar(exp[0], exp[1], yerr=np.sqrt(exp[1]), linestyle='None',
                     color='k')
-        ax.plot(sim[0], sim[1], 'r--', label='MCNP')
+        ax.plot(sim[0][fit_bool], sim[1][fit_bool], 'r--', label='MCNP')
         ax.set_yscale('log')
 
         ax.text(0.87, 0.87, letters[i], transform=ax.transAxes)
         ax.set_xlim(x_lims[i])
         ax.set_ylim(y_lims[i])
         ax.set_title(detectors[i].replace('_', '-'), loc='left')
-    plt.subplots_adjust(hspace=0.18, wspace=0.18)
+    plt.subplots_adjust(hspace=0.25, wspace=0.18)
     fig.text(0.5, 0.1, '$E_{ee}$ ($MeV_{ee}$)', transform=fig.transFigure)
     fig.text(0.08, 0.52, 'counts', rotation='vertical')
 
@@ -111,5 +117,6 @@ def plot_fitted_spectra(detectors, directory):
 if __name__ == '__main__':
     plot_gamma_spectra('S2_01', '20-11-2020')
 
-    detectors = ['S1_05', 'S2_01', 'S2_02', 'S2_03']
+    # detectors = ['S1_05', 'S2_01', 'S2_02', 'S2_03']
+    detectors = ['S1_04', 'S1_05', 'S2_01', 'S2_02']
     plot_fitted_spectra(detectors, '20-11-2020')

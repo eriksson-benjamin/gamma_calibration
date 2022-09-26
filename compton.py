@@ -244,6 +244,8 @@ def main(detector, directory):
 
 if __name__ == '__main__':
     # Main analysis
-    detector = sys.argv[1]
-    directory = sys.argv[2]
+    # detector = sys.argv[1]
+    # directory = sys.argv[2]
+    detector = 'S1_01'
+    directory = '20-11-2020'
     main(detector, directory)
