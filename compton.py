@@ -11,13 +11,14 @@ import scipy.optimize as optimize
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import numpy as np
-sys.path.insert(0, 'C:/python/definitions/')
+sys.path.insert(0, 'C:/python/useful_definitions/')
 import useful_defs as udfs
 import scipy
 udfs.set_nes_plot_style()
 sys.path.insert(0, 'C:/python/TOFu/functions/')
 import tofu_functions as dfs
 import os
+
 
 '''
 Takes a simulated and a measured Na-22 spectrum and applies alpha, beta, gamma
@@ -46,8 +47,12 @@ def read_mcnp(detector):
 
 def read_experimental(detector, directory):
     """Return the experimental Na-22 data."""
-    path = f'data/pulse_areas/{directory}'
-    return np.loadtxt(f'{path}/{detector}.txt')
+    path_exp = f'data/pulse_areas/Na22/{directory}'
+    path_bgr = f'data/pulse_areas/background/{directory}'
+
+    exp = np.loadtxt(f'{path_exp}/{detector}.txt')
+    bgr = np.loadtxt(f'{path_bgr}/{detector}.txt')
+    return exp, bgr
 
 
 def starting_guesses(detector, directory):
@@ -60,8 +65,8 @@ def starting_guesses(detector, directory):
     return parameters, limits
 
 
-def resolution_broadening(sim_511, sim_1275, exp, alpha, beta, gamma, I_511,
-                          I_1275):
+def resolution_broadening(sim_511, sim_1275, alpha, beta, gamma,
+                          I_511, I_1275):
     """Calculate the resolution broadening matrix."""
     # Shifted/unshifted matrix energy axis ()
     if np.all(sim_511[:, 0] == sim_1275[:, 0]):
@@ -93,41 +98,18 @@ def resolution_broadening(sim_511, sim_1275, exp, alpha, beta, gamma, I_511,
     return sim_total, erg_axis_1
 
 
-def linear_interpolation(exp_cts, exp_ax, sim_cts, sim_ax):
-    """
-    Perform linear interpolation on simulated data.
-
-    Note
-    ----
-    Linear interpolation is performed on simulated data to match the axis of
-    experimental data.
-    """
-    # Store interpolated counts in sim_new
-    sim_new = np.zeros(len(exp_cts))
-    for i, exp_x in enumerate(exp_ax):
-        # Find two closest bin centres to experimental x-axis
-        left = np.searchsorted(sim_ax, exp_x) - 1
-        right = left + 1
-        sim_x = [sim_ax[left], sim_ax[right]]
-        sim_y = [sim_cts[left], sim_cts[right]]
-
-        # Slope and interesection for linear interpolation
-        k = (sim_y[1] - sim_y[0]) / (sim_x[1] - sim_x[0])
-        m = sim_y[0] - k * sim_x[0]
-
-        # Calculate new interpolated counts
-        sim_new[i] = k * exp_x + m
-    return sim_new
-
-
-def warp_axes(parameters, sim_511, sim_1275, exp, limits):
+def warp_axes(parameters, sim_511, sim_1275, exp, bgr, limits):
     """
     Broaden simulation and warp axis of experimental data.
 
     Notes
     -----
-    Broaden simulated spectrum and apply offset/multiplier to experimental
-    spectrum.
+    - Broaden simulated spectrum and apply offset/multiplier to experimental
+      spectrum.
+    - Axis is normalized to ensure offset/multiplier are reasonably
+      large for minimization algorithm.
+    - To apply offset/multiplier to data after gamma calibration we need to
+      divide by the normalization (i.e. bin_norm multiplied by bin width)
     """
     # Get free parameters
     alpha = parameters[0]
@@ -139,56 +121,90 @@ def warp_axes(parameters, sim_511, sim_1275, exp, limits):
     I_1275 = parameters[6]
 
     # Calculate broadened simulated spectrum
-    sim_total, sim_axis = resolution_broadening(sim_511, sim_1275, exp, alpha,
-                                                beta, gamma, I_511, I_1275)
+    sim_total, sim_axis = resolution_broadening(sim_511, sim_1275, alpha, beta,
+                                                gamma, I_511, I_1275)
 
-    # Apply offset/multiplier to experimental binning
+    # Apply offset/multiplier to experimental binning, normalize binning
     bin_nums = np.arange(0, len(exp))
-    exp_axis = (offset + multiplier * bin_nums) / 1000
+    bin_norm = 1000
+    exp_axis = (offset + multiplier * bin_nums) / bin_norm
+    return (exp_axis, exp[:, 1]), (exp_axis, bgr[:, 1]), (sim_axis, sim_total)
 
-    return (exp_axis, exp[:, 1]), (sim_axis, sim_total)
 
-
-def fit_function(parameters, sim_511, sim_1275, exp, limits):
+def fit_function(parameters, sim_511, sim_1275, exp, bgr, limits):
     """Minimize chi^2."""
-    (exp_axis, exp_counts), (sim_axis, sim_counts) = warp_axes(parameters,
-                                                               sim_511,
-                                                               sim_1275, exp,
-                                                               limits)
+    exp, bgr, sim = warp_axes(parameters, sim_511, sim_1275, exp, bgr, limits)
+    exp_axis = exp[0]
+    exp_counts = exp[1]
+    sim_axis = sim[0]
+    sim_counts = sim[1]
+    bgr_counts = bgr[1]
 
     # Cut out fit range for comparison
     lims = (np.searchsorted(exp_axis, limits[0]),
             np.searchsorted(exp_axis, limits[1]))
     exp_ax = exp_axis[lims[0]:lims[1]]
     exp_cts = exp_counts[lims[0]:lims[1]]
+    bgr_cts = bgr_counts[lims[0]:lims[1]]
 
     # Interpolate between simulated/experimental data
-    sim_cts = linear_interpolation(exp_cts, exp_ax, sim_counts, sim_axis)
+    sim_cts = udfs.interpolate_new_axis(exp_ax, sim_axis, sim_counts)
+
+    # Add background spectrum
+    sim_cts += bgr_cts
 
     # Calculate chi2
     chi2 = np.sum((exp_cts - sim_cts)**2 / sim_cts) / (len(exp_cts) - 7)
+
     print(f'chi2 = {chi2}')
+
     return chi2
 
 
-def plot_comparison(parameters, sim_511, sim_1275, exp, limits, detector):
-    """Plot broadened MCNP spectrum vs. experimental Na-22 spectrum."""
-    exp, sim = warp_axes(parameters, sim_511, sim_1275, exp, limits)
+def plot_comparison(parameters, sim_511, sim_1275, exp, bgr, limits, detector):
+    """
+    Plot MCNP spectrum against experimental Na-22 spectrum.
+
+    Notes
+    -----
+    1. MCNP spectrum is broadened.
+    2. Measured background component is added to MCNP spectrum.
+    """
+    # Warp experimental axis
+    exp, bgr, sim = warp_axes(parameters, sim_511, sim_1275, exp, bgr, limits)
+
+    # Interpolate simulated axis onto experimental
+    sim_cts = udfs.interpolate_new_axis(exp[0], sim[0], sim[1])
+
+    # Plot
     plt.figure()
-    plt.title(detector, loc='left')
-    plt.plot(exp[0], exp[1], 'k.', label='Na-22')
+
+    # Experimental data
+    plt.plot(exp[0], exp[1], 'k.', label='Na-22', markersize=1)
     plt.errorbar(exp[0], exp[1], yerr=np.sqrt(exp[1]), linestyle='None',
                  color='k')
-    plt.plot(sim[0], sim[1], 'C0-', label='MCNP')
+
+    # Simulated data
+    plt.plot(sim[0], sim[1], 'C0--', label='MCNP')
+
+    # Simulated data + background
+    plt.plot(bgr[0], sim_cts + bgr[1], 'r-', label='MCNP+background')
+
+    # Background component
+    plt.plot(bgr[0], bgr[1], 'C1-.', label='background')
+
+    # Configure plots
+    plt.title(detector, loc='left')
     plt.xlabel('$E_{ee}$ $(MeV_{ee})$')
     plt.ylabel('Intensity (a.u.)')
     plt.yscale('log')
+    plt.legend()
 
 
 def write_parameters(detector, directory, parameters):
     """Write fit parameters to file."""
     par_names = ['alpha', 'beta', 'gamma', 'offset', 'multiplier', 'I_511',
-                 'I_1275', 'lim_lo', 'lim_hi']
+                 'I_1275', 'lim_lo', 'lim_hi', 'norm_factor']
     file_name = f'output/fit_parameters/{directory}/{detector}.txt'
 
     # Check if file already exists
@@ -201,19 +217,20 @@ def write_parameters(detector, directory, parameters):
     # Save parameters to file
     with open(file_name, 'w') as handle:
         for pn, par in zip(par_names, parameters):
-            handle.write(f'{pn.ljust(10)} {par}\n')
+            handle.write(f'{pn.ljust(11)} {par}\n')
 
 
 def main(detector, directory):
     """Perform fit and write parameters to file."""
     # Read simulated/experimental data and initial parameter guesses
     sim_511, sim_1275 = read_mcnp(detector)
-    exp = read_experimental(detector, directory)
+    exp, bgr = read_experimental(detector, directory)
     parameters, limits = starting_guesses(detector, directory)
 
     # Plot initial guess
     while True:
-        plot_comparison(parameters, sim_511, sim_1275, exp, limits, detector)
+        plot_comparison(parameters, sim_511, sim_1275,
+                        exp, bgr, limits, detector)
         plt.savefig('initial_guesses/init.png')
         # plt.close('all')
         ans = input('Continue with fit? (y/n) ')
@@ -226,26 +243,31 @@ def main(detector, directory):
     bnds = ((0, None), (0, None), (0, None), (None, None), (0, None),
             (0, None), (0, None))
     popt = scipy.optimize.minimize(fit_function, parameters, bounds=bnds,
-                                   args=(sim_511, sim_1275, exp, limits))
+                                   args=(sim_511, sim_1275, exp, bgr, limits))
 
     # Plot resulting fit
-    plot_comparison(popt.x, sim_511, sim_1275, exp, limits, detector)
+    plot_comparison(popt.x, sim_511, sim_1275, exp, bgr, limits, detector)
 
     # Print parameters
     parameters = np.append(popt.x, limits)
+
+    # Normalization factor is 1/(bin_width*bin_norm)
+    bin_norm = 1000.
+    norm_factor = (np.diff(exp[:, 0])[0] * bin_norm)
+    parameters = np.append(parameters, norm_factor)
+
     par_names = ['alpha', 'beta', 'gamma', 'offset', 'multiplier', 'I_511',
-                 'I_1275', 'lim_lo', 'lim_hi']
+                 'I_1275', 'lim_lo', 'lim_hi', 'norm_factor']
+
     for pn, par in zip(par_names, parameters):
-        print(f'{pn.ljust(10)} {par}\n')
+        print(f'{pn.ljust(11)} {par}\n')
 
     # Save parameters to file
-    write_parameters(detector, directory, np.append(popt.x, limits))
+    write_parameters(detector, directory, parameters)
 
 
 if __name__ == '__main__':
     # Main analysis
-    # detector = sys.argv[1]
-    # directory = sys.argv[2]
-    detector = 'S1_01'
-    directory = '20-11-2020'
+    detector = sys.argv[1]
+    directory = sys.argv[2]
     main(detector, directory)
