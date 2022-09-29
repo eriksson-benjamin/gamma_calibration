@@ -19,8 +19,9 @@ def write_fit_parameters(detectors, directory, file_name):
         path = f'output/fit_parameters/{directory}/{detector}.txt'
         p = np.loadtxt(path, dtype='str')
 
-        offset = float(p[3][1])
-        multiplier = float(p[4][1])
+        # Grab offset/multiplier, divide by normalization constant
+        offset = float(p[3][1]) / float(p[-1][1])
+        multiplier = float(p[4][1]) / float(p[-1][1])
 
         # Write to file
         with open(file_name, 'a') as handle:
@@ -32,9 +33,9 @@ if __name__ == '__main__':
     # Write S1 parameter file
     detectors = dfs.get_dictionaries('S1')
     p = write_fit_parameters(detectors, '20-11-2020',
-                             'energy_calibration_S1_.txt')
+                             'energy_calibration_S1.txt')
 
     # Write S2 parameter file
     detectors = dfs.get_dictionaries('S2')
     p = write_fit_parameters(detectors, '20-11-2020',
-                             'energy_calibration_S2_.txt')
+                             'energy_calibration_S2.txt')
